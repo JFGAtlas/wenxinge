@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0E1216">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <title>静坐 · 问心阁</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-page="xi">
+<main>
+  <header class="pagehead fade-up">
+    <div class="seal">息</div>
+    <div>
+      <h1>静坐</h1>
+      <div class="sub">跟随呼吸 · 四秒吸，四秒呼</div>
+    </div>
+  </header>
+
+  <section class="card fade-up" id="setup">
+    <div class="field">
+      <label>静坐时长</label>
+      <div class="chips" id="dur-chips">
+        <span class="chip on" data-m="3">3 分钟</span>
+        <span class="chip" data-m="5">5 分钟</span>
+        <span class="chip" data-m="10">10 分钟</span>
+      </div>
+    </div>
+    <div class="field">
+      <label>提醒钟声（每半分钟一声轻磬，由设备实时生成，无需联网）</label>
+      <div class="chips" id="bell-chips">
+        <span class="chip on" data-b="1">开</span>
+        <span class="chip" data-b="0">关</span>
+      </div>
+    </div>
+    <button class="btn block" id="btn-start">入　座</button>
+    <p style="font-size:12.5px;color:var(--ink-3);margin-top:12px;text-align:center">
+      累计静坐 <b id="total-min" style="color:var(--dai)">0</b> 分钟
+    </p>
+  </section>
+
+  <section class="hidden" id="session">
+    <div class="breath-stage">
+      <div class="breath-circle out" id="circle">吸</div>
+    </div>
+    <div class="timer-big" id="clock">03:00</div>
+    <div style="text-align:center;padding-bottom:8px">
+      <button class="btn ghost" id="btn-stop">提前起座</button>
+    </div>
+  </section>
+</main>
+
+<script src="js/core.js"></script>
+<script src="js/data.js"></script>
+<script src="js/premium.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  let minutes = 3, bellOn = true;
+  let timer = null, left = 0, started = 0;
+  let audioCtx = null, breathTimer = null, phase = 'in';
+
+  const circle = document.getElementById('circle');
+  const clock = document.getElementById('clock');
+
+  document.getElementById('total-min').textContent = Math.floor(WXG.Store.get('xi_total', 0) / 60);
+
+  document.getElementById('dur-chips').addEventListener('click', e => {
+    if (!e.target.dataset.m) return;
+    minutes = +e.target.dataset.m;
+    e.currentTarget.querySelectorAll('.chip').forEach(c => c.classList.toggle('on', c === e.target));
+  });
+  document.getElementById('bell-chips').addEventListener('click', e => {
+    if (!e.target.dataset.b) return;
+    bellOn = e.target.dataset.b === '1';
+    e.currentTarget.querySelectorAll('.chip').forEach(c => c.classList.toggle('on', c === e.target));
+  });
+
+  /* 轻磬：Web Audio 实时合成，无任何外部音频文件 */
+  function chime() {
+    if (!bellOn) return;
+    try {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const t = audioCtx.currentTime;
+      [523.25, 1046.5].forEach((freq, i) => {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.frequency.value = freq;
+        osc.type = 'sine';
+        gain.gain.setValueAtTime(0, t);
+        gain.gain.linearRampToValueAtTime(i ? .06 : .14, t + .02);
+        gain.gain.exponentialRampToValueAtTime(.0001, t + 2.4);
+        osc.connect(gain).connect(audioCtx.destination);
+        osc.start(t); osc.stop(t + 2.5);
+      });
+    } catch (e) {}
+  }
+
+  function breathe() {
+    phase = phase === 'in' ? 'out' : 'in';
+    circle.textContent = phase === 'in' ? '吸' : '呼';
+    circle.classList.toggle('in', phase === 'in');
+    circle.classList.toggle('out', phase !== 'in');
+  }
+
+  function fmtTime(s) {
+    return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+  }
+
+  function start() {
+    left = minutes * 60;
+    started = left;
+    clock.textContent = fmtTime(left);
+    document.getElementById('setup').classList.add('hidden');
+    document.getElementById('session').classList.remove('hidden');
+    chime();
+    phase = 'out'; breathe();
+    breathTimer = setInterval(breathe, 4000);
+    timer = setInterval(() => {
+      left--;
+      clock.textContent = fmtTime(left);
+      if (left > 0 && left % 30 === 0) chime();
+      if (left <= 0) finish(true);
+    }, 1000);
+  }
+
+  function finish(complete) {
+    clearInterval(timer); clearInterval(breathTimer);
+    const sat = started - left;
+    document.getElementById('session').classList.add('hidden');
+    document.getElementById('setup').classList.remove('hidden');
+    if (sat >= 30) {
+      WXG.Store.set('xi_total', WXG.Store.get('xi_total', 0) + sat);
+      document.getElementById('total-min').textContent = Math.floor(WXG.Store.get('xi_total', 0) / 60);
+      chime();
+      WXG.Light.add(2, complete ? '静坐圆满' : '静坐片刻');
+      WXG.modal({ title: complete ? '此坐圆满' : '起座', body: '本次静坐 ' + Math.floor(sat / 60) + ' 分 ' + (sat % 60) + ' 秒。<br>带着这份平静，回到事情里去。', okText: '心安' });
+    } else {
+      WXG.toast('不足半分钟，下次坐久一点');
+    }
+  }
+
+  document.getElementById('btn-start').addEventListener('click', start);
+  document.getElementById('btn-stop').addEventListener('click', () => finish(false));
+});
+</script>
+</body>
+</html>

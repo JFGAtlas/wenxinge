@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0E1216">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <title>梦释 · 问心阁</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-page="meng">
+<main>
+  <header class="pagehead fade-up">
+    <div class="seal">梦</div>
+    <div>
+      <h1>梦释</h1>
+      <div class="sub">昨夜何梦 · 释义皆为心境参考</div>
+    </div>
+  </header>
+
+  <section class="card fade-up">
+    <div class="search-bar">
+      <div class="field" style="flex:1;margin-bottom:0">
+        <input type="text" id="q" maxlength="30" placeholder="梦见什么？如：掉牙、下雨、飞">
+      </div>
+      <button class="btn" id="btn-search" style="padding:11px 22px">释梦</button>
+    </div>
+    <div class="hot-tags" id="hot"></div>
+  </section>
+
+  <section class="card hidden meng-result" id="result"></section>
+
+  <section class="card fade-up">
+    <div class="card-title">按类寻梦</div>
+    <div class="chips" id="cats"></div>
+    <div id="cat-list" style="margin-top:14px"></div>
+  </section>
+</main>
+
+<script src="js/core.js"></script>
+<script src="js/data.js"></script>
+<script src="js/premium.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const resultEl = document.getElementById('result');
+  const luckBadge = l => {
+    const map = { '吉': 'grade-1', '平': 'grade-3', '慎': 'grade-4' };
+    return '<span class="badge ' + map[l] + ' luck">' + l + '</span>';
+  };
+
+  function deepMeng(item) {
+    const byLuck = {
+      '吉': '从心境的角度看，这个梦更像一份提示而非预言：你的内在状态正在向好，潜意识先于你察觉到了。接下来三五日，宜顺着梦里那股轻快劲，把搁置的好事提上日程；睡前少刷手机，把这份好状态养住。',
+      '平': '此梦不主吉凶，更像潜意识在替你「整理白天」。梦里出现的人与物，多半对应近来反复想起却未处理的事。建议醒后花两分钟把梦记下来，再写一句「它让我想到了什么」——写到第三次，答案常会自己浮出来。',
+      '慎': '此类梦多与压力和睡眠质量相关，不必恐慌，但值得把它当作身体递来的一张字条。近一周宜：早睡半小时、减少咖啡与酒、睡前用温水泡脚；若同样的梦反复出现超过两周，建议关照一下情绪与作息，必要时寻求专业帮助。'
+    };
+    return byLuck[item.luck] + '<br><br><span style="color:var(--ink-3);font-size:12.5px">梦的成因复杂，以上仅为传统民俗与心境视角的参考。</span>';
+  }
+
+  function show(item, kw) {
+    resultEl.classList.remove('hidden');
+    resultEl.innerHTML =
+      '<div class="card-title">梦见「' + kw + '」' + luckBadge(item.luck) + '</div>' +
+      '<p style="font-size:14.5px;color:var(--ink-2)">' + item.x + '</p>' +
+      '<div id="deep-zone" style="margin-top:14px">' +
+        '<button class="btn block" id="btn-deep">深入梦释 <span class="badge free">限免</span></button>' +
+      '</div>';
+    document.getElementById('btn-deep').addEventListener('click', () => {
+      Premium.require('deep_meng', () => {  /* 收费点：梦境深释 */
+        document.getElementById('deep-zone').innerHTML =
+          '<div class="jie"><b>深释：</b>' + deepMeng(item) + '</div>';
+      });
+    });
+    resultEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const h = WXG.Store.get('meng_history', []);
+    h.unshift({ kw, d: WXG.todayStr() });
+    WXG.Store.set('meng_history', h.slice(0, 20));
+  }
+
+  function search(raw) {
+    const kw = (raw || '').trim();
+    if (!kw) { WXG.toast('先写下梦中所见'); return; }
+    const hit = MENG.find(m => m.k.some(k => kw.includes(k) || k.includes(kw)));
+    if (hit) { show(hit, kw); return; }
+    resultEl.classList.remove('hidden');
+    resultEl.innerHTML =
+      '<div class="card-title">梦见「' + kw + '」</div>' +
+      '<p style="font-size:14.5px;color:var(--ink-2)">阁中词库暂未收录此梦。不过——记得住的梦，往往对应着白天悬而未决的心事。' +
+      '不妨试着把这个梦讲给信任的人听，讲完之时，常常自己就懂了。</p>';
+    resultEl.scrollIntoView({ behavior: 'smooth' });
+  }
+
+  /* 热门标签：按日轮换 8 个 */
+  const hotWords = WXG.seededPick(MENG.map(m => m.k[0]), WXG.daySeed('hot'), 8);
+  document.getElementById('hot').innerHTML =
+    hotWords.map(w => '<span class="chip" data-w="' + w + '">' + w + '</span>').join('');
+  document.getElementById('hot').addEventListener('click', e => {
+    const w = e.target.dataset && e.target.dataset.w;
+    if (w) { document.getElementById('q').value = w; search(w); }
+  });
+
+  /* 分类浏览 */
+  const catsEl = document.getElementById('cats');
+  const listEl = document.getElementById('cat-list');
+  catsEl.innerHTML = MENG_CATS.map((c, i) =>
+    '<span class="chip' + (i === 0 ? ' on' : '') + '" data-c="' + c + '">' + c + '</span>').join('');
+  function renderCat(cat) {
+    listEl.innerHTML = MENG.filter(m => m.cat === cat).map(m =>
+      '<span class="chip" data-w="' + m.k[0] + '" style="margin:0 8px 8px 0;display:inline-block">' + m.k[0] + '</span>').join('');
+  }
+  catsEl.addEventListener('click', e => {
+    const c = e.target.dataset && e.target.dataset.c;
+    if (!c) return;
+    catsEl.querySelectorAll('.chip').forEach(el => el.classList.toggle('on', el.dataset.c === c));
+    renderCat(c);
+  });
+  listEl.addEventListener('click', e => {
+    const w = e.target.dataset && e.target.dataset.w;
+    if (w) { document.getElementById('q').value = w; search(w); }
+  });
+  renderCat(MENG_CATS[0]);
+
+  document.getElementById('btn-search').addEventListener('click', () => search(document.getElementById('q').value));
+  document.getElementById('q').addEventListener('keydown', e => { if (e.key === 'Enter') search(e.target.value); });
+});
+</script>
+</body>
+</html>

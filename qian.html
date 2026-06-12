@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0E1216">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <title>问签 · 问心阁</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-page="qian">
+<main>
+  <header class="pagehead fade-up">
+    <div class="seal">问</div>
+    <div>
+      <h1>问心签</h1>
+      <div class="sub">三十六签 · 不占祸福，只照心事</div>
+    </div>
+  </header>
+
+  <!-- 摇签区 -->
+  <section class="card fade-up" id="ask-card">
+    <div class="field">
+      <label>默念心中所问（可不填，一签一事）</label>
+      <input type="text" id="question" maxlength="40" placeholder="例如：这次换工作，时机合适吗？">
+    </div>
+    <div class="tube-stage">
+      <svg class="tube" id="tube" width="110" height="130" viewBox="0 0 110 130">
+        <!-- 签筒 -->
+        <path d="M25 50 L85 50 L78 122 Q55 130 32 122 Z" fill="#8A6A4A" stroke="#6E5238" stroke-width="2"/>
+        <ellipse cx="55" cy="50" rx="30" ry="9" fill="#A98862" stroke="#6E5238" stroke-width="2"/>
+        <text x="55" y="95" text-anchor="middle" font-size="16" fill="#F3E6D2" style="letter-spacing:.2em">問心</text>
+        <!-- 签 -->
+        <g>
+          <rect x="42" y="14" width="5" height="40" rx="2.5" fill="#D9B98C" transform="rotate(-8 44 34)"/>
+          <rect x="53" y="8"  width="5" height="46" rx="2.5" fill="#E3C79D"/>
+          <rect x="64" y="15" width="5" height="39" rx="2.5" fill="#D9B98C" transform="rotate(7 66 34)"/>
+        </g>
+      </svg>
+    </div>
+    <p style="text-align:center;font-size:12.5px;color:var(--ink-3);margin-bottom:14px" id="quota-line"></p>
+    <button class="btn sha block" id="btn-draw">静心 · 摇签</button>
+  </section>
+
+  <!-- 结果区 -->
+  <section class="card hidden" id="result-card">
+    <div class="stick-fly" id="result-inner"></div>
+    <div id="deep-zone" style="margin-top:14px"></div>
+    <button class="btn ghost block" style="margin-top:14px" id="btn-again">再问一签</button>
+  </section>
+
+  <!-- 历史 -->
+  <section class="card fade-up" id="history-card">
+    <div class="card-title">近来所问</div>
+    <div id="history"></div>
+  </section>
+</main>
+
+<script src="js/core.js"></script>
+<script src="js/data.js"></script>
+<script src="js/premium.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const FREE_PER_DAY = 3;
+  const askCard = document.getElementById('ask-card');
+  const resultCard = document.getElementById('result-card');
+  const resultInner = document.getElementById('result-inner');
+  const deepZone = document.getElementById('deep-zone');
+  const quotaLine = document.getElementById('quota-line');
+  const btnDraw = document.getElementById('btn-draw');
+
+  function quota() {
+    const q = WXG.Store.get('qian_quota', {});
+    return (q.date === WXG.todayStr()) ? q.used : 0;
+  }
+  function useQuota() {
+    WXG.Store.set('qian_quota', { date: WXG.todayStr(), used: quota() + 1 });
+  }
+  function syncQuota() {
+    const left = Math.max(0, FREE_PER_DAY - quota());
+    quotaLine.textContent = left > 0
+      ? '今日还可免费问 ' + left + ' 签'
+      : '今日免费签已用完，可加签一次（限免）';
+  }
+
+  function gradeBadge(g) {
+    return '<span class="badge grade-' + g + '">' + GRADE_NAME[g] + '</span>';
+  }
+
+  /* 深解文案：由签文与所问拼合生成（未来可替换为后端 AI 流式接口） */
+  function deepText(s, question) {
+    const head = question ? '你所问的是「' + question + '」。' : '你心中所悬之事，';
+    const byGrade = {
+      1: '此签气象开阔，' + head + '签意以为：当下的条件比你感觉到的更成熟，真正拦住你的是「再等等」的惯性。诗中「' + s.p[2] + '」一句正是关键——把视线从顾虑移回脚下，先迈第一步，余下的路会在走的过程中显形。',
+      2: '此签平和向好，' + head + '签意以为：方向无误，欠的是火候与细节。诗中「' + s.p[2] + '」点出此事的肯綮——与其追求一步到位，不如把节奏放稳，按「' + s.yi.split(' · ')[0] + '」的思路先做起来，余事自有水到渠成之时。',
+      3: '此签不言吉凶，' + head + '签意以为：此事成败的钥匙不在外界，而在你如何看待与安排。「' + s.p[2] + '」是这支签留给你的提醒——眼下最该避免的是' + s.ji.split(' · ')[0] + '，最值得做的是' + s.yi.split(' · ')[0] + '。境随心转，不必急于求一个答案。',
+      4: '此签意在提醒而非断言，' + head + '签意以为：此事确有需要绕开的坑。「' + s.p[2] + '」说得直白——此刻宁可慢、宁可少，不可冒进。先把「' + s.ji.split(' · ')[0] + '」三个字写在手边，避开它，这支签的使命就完成了。'
+    };
+    return byGrade[s.g] + '<br><br><span style="color:var(--ink-3);font-size:12.5px">签文与解语皆为本阁原创，仅作心境参考，重大决定请以现实信息为准。</span>';
+  }
+
+  function render(s, question) {
+    resultInner.innerHTML =
+      '<div class="qian-no">问心签 · 第' + s.n + '签</div>' +
+      '<div class="qian-title">' + s.t + '　' + gradeBadge(s.g) + '</div>' +
+      '<div class="poem">' + s.p.map(l => '<div class="line">' + l + '</div>').join('') + '</div>' +
+      '<div class="jie"><b>解曰：</b>' + s.j + '</div>' +
+      '<div class="yi-ji">' +
+        '<div class="half yi"><b>宜</b>' + s.yi + '</div>' +
+        '<div class="half ji"><b>忌</b>' + s.ji + '</div>' +
+      '</div>';
+
+    deepZone.innerHTML = '<button class="btn block" id="btn-deep">逐句深解 <span class="badge free">限免</span></button>';
+    document.getElementById('btn-deep').addEventListener('click', () => {
+      Premium.require('deep_qian', () => {
+        deepZone.innerHTML = '<div class="jie"><b>深解：</b><span id="deep-body"></span></div>';
+        typewriter(document.getElementById('deep-body'), deepText(s, question));
+      });
+    });
+  }
+
+  /* 打字机效果（预留：将来接 AI 流式输出时复用此渲染） */
+  function typewriter(el, html) {
+    const tmp = document.createElement('div');
+    tmp.innerHTML = html;
+    const text = tmp.textContent;
+    let i = 0;
+    el.parentElement.style.minHeight = '60px';
+    const timer = setInterval(() => {
+      i += 2;
+      el.textContent = text.slice(0, i);
+      if (i >= text.length) { clearInterval(timer); el.innerHTML = html; }
+    }, 28);
+  }
+
+  function saveHistory(s, question) {
+    const h = WXG.Store.get('qian_history', []);
+    h.unshift({ n: s.n, t: s.t, g: s.g, q: question, d: WXG.todayStr() });
+    WXG.Store.set('qian_history', h.slice(0, 20));
+    renderHistory();
+  }
+
+  function renderHistory() {
+    const h = WXG.Store.get('qian_history', []);
+    document.getElementById('history').innerHTML = h.length
+      ? h.map(r => '<div class="rec-item"><span>第' + r.n + '签 · ' + r.t + ' ' + gradeBadge(r.g) +
+          (r.q ? '<br><span style="font-size:12px;color:var(--ink-3)">问：' + r.q + '</span>' : '') +
+          '</span><span class="t">' + r.d + '</span></div>').join('')
+      : '<p style="font-size:13.5px;color:var(--ink-3)">尚未问过签。心有所惑时，来摇一支。</p>';
+  }
+
+  function draw() {
+    const question = document.getElementById('question').value.trim();
+    const doDraw = () => {
+      useQuota(); syncQuota();
+      btnDraw.disabled = true;
+      document.getElementById('tube').classList.add('shaking');
+      setTimeout(() => {
+        document.getElementById('tube').classList.remove('shaking');
+        btnDraw.disabled = false;
+        const s = QIAN[Math.floor(Math.random() * QIAN.length)];
+        render(s, question);
+        saveHistory(s, question);
+        askCard.classList.add('hidden');
+        resultCard.classList.remove('hidden');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        WXG.Light.add(1, '问签一支');
+      }, 1900);
+    };
+
+    if (quota() >= FREE_PER_DAY) {
+      Premium.require('extra_qian', doDraw); /* 收费点：加签 */
+    } else {
+      doDraw();
+    }
+  }
+
+  btnDraw.addEventListener('click', draw);
+  document.getElementById('btn-again').addEventListener('click', () => {
+    resultCard.classList.add('hidden');
+    askCard.classList.remove('hidden');
+    document.getElementById('question').value = '';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+
+  syncQuota();
+  renderHistory();
+});
+</script>
+</body>
+</html>

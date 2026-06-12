@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0E1216">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <title>心灯 · 问心阁</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-page="deng">
+<main>
+  <header class="pagehead fade-up">
+    <div class="seal">灯</div>
+    <div>
+      <h1>心灯</h1>
+      <div class="sub">为牵挂的人，点一盏灯</div>
+    </div>
+  </header>
+
+  <section class="card fade-up">
+    <div class="field">
+      <label>为谁而点</label>
+      <div class="chips" id="who-chips">
+        <span class="chip on">家人</span><span class="chip">爱人</span><span class="chip">孩子</span>
+        <span class="chip">朋友</span><span class="chip">自己</span>
+      </div>
+    </div>
+    <div class="field">
+      <label>名字或称呼（会写在灯上）</label>
+      <input type="text" id="who-name" maxlength="8" placeholder="例如：妈妈 / 阿明">
+    </div>
+    <div class="field">
+      <label>选一盏灯</label>
+      <div class="lamp-pick" id="lamp-pick"></div>
+    </div>
+    <div class="field">
+      <label>一句心愿（可不填，最多 30 字）</label>
+      <input type="text" id="wish" maxlength="30" placeholder="例如：愿你身体康健，万事不愁">
+    </div>
+    <button class="btn sha block" id="btn-light">点亮此灯（限免）</button>
+  </section>
+
+  <section class="card fade-up">
+    <div class="card-title">我的灯墙 <span style="font-size:12px;color:var(--ink-3);font-weight:400" id="wall-count"></span></div>
+    <div class="lamp-wall" id="wall"></div>
+    <p id="wall-empty" style="font-size:13.5px;color:var(--ink-3)">还没有点过灯。心里惦记谁，就为谁点一盏。</p>
+  </section>
+</main>
+
+<script src="js/core.js"></script>
+<script src="js/data.js"></script>
+<script src="js/premium.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  let pickedLamp = LAMPS[0];
+
+  /* 灯种选择 */
+  const pickEl = document.getElementById('lamp-pick');
+  pickEl.innerHTML = LAMPS.map((l, i) =>
+    '<div class="lamp-opt' + (i === 0 ? ' on' : '') + '" data-id="' + l.id + '">' +
+    '<div class="dot" style="background:' + l.color + '"></div>' +
+    '<div class="nm">' + l.name + (l.free ? '' : ' <span class="badge free">限免</span>') + '</div></div>').join('');
+  pickEl.addEventListener('click', e => {
+    const opt = e.target.closest('.lamp-opt');
+    if (!opt) return;
+    pickedLamp = LAMPS.find(l => l.id === opt.dataset.id);
+    pickEl.querySelectorAll('.lamp-opt').forEach(el => el.classList.toggle('on', el === opt));
+  });
+
+  /* 关系选择 */
+  const whoChips = document.getElementById('who-chips');
+  whoChips.addEventListener('click', e => {
+    if (!e.target.classList.contains('chip')) return;
+    whoChips.querySelectorAll('.chip').forEach(el => el.classList.toggle('on', el === e.target));
+  });
+
+  function lamps() { return WXG.Store.get('lamps', []); }
+
+  function renderWall() {
+    const list = lamps();
+    document.getElementById('wall-empty').style.display = list.length ? 'none' : '';
+    document.getElementById('wall-count').textContent = list.length ? '· 共 ' + list.length + ' 盏' : '';
+    document.getElementById('wall').innerHTML = list.map(l =>
+      '<div class="lamp" title="' + (l.wish || '') + '">' +
+      '<div class="flame" style="filter:drop-shadow(0 0 6px ' + l.color + 'cc)"></div>' +
+      '<div class="who">' + l.name + '</div>' +
+      '<div class="type">' + l.lampName + '</div></div>').join('');
+  }
+
+  function doLight() {
+    const name = document.getElementById('who-name').value.trim();
+    if (!name) { WXG.toast('写下名字或称呼，灯才有主人'); return; }
+    const rel = whoChips.querySelector('.chip.on').textContent;
+    const wish = document.getElementById('wish').value.trim() || pickedLamp.wish;
+
+    const light = () => {
+      const list = lamps();
+      list.unshift({ name, rel, wish, lampName: pickedLamp.name, color: pickedLamp.color, d: WXG.todayStr() });
+      WXG.Store.set('lamps', list.slice(0, 48));
+      renderWall();
+      WXG.Light.add(2, '点灯一盏');
+      WXG.modal({
+        title: '灯已点亮',
+        body: '为「' + name + '」点的' + pickedLamp.name + '已挂上灯墙。<br>' + wish + '。',
+        okText: '心安'
+      });
+      document.getElementById('who-name').value = '';
+      document.getElementById('wish').value = '';
+    };
+
+    if (!pickedLamp.free) {
+      Premium.require(pickedLamp.product, light); /* 收费点：长明灯 */
+    } else {
+      light();
+    }
+  }
+
+  document.getElementById('btn-light').addEventListener('click', doLight);
+  renderWall();
+});
+</script>
+</body>
+</html>

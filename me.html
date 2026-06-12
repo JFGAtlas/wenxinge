@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0E1216">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <title>我的 · 问心阁</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-page="me">
+<main>
+  <header class="pagehead fade-up">
+    <div class="seal">我</div>
+    <div>
+      <h1>我的</h1>
+      <div class="sub">心光与记录</div>
+    </div>
+  </header>
+
+  <section class="idcard fade-up">
+    <div class="lbl">我的雅号 · 凭此可在新设备找回记录（接入后端后生效）</div>
+    <div class="code" id="code"></div>
+    <div class="light">心光 <b id="light">0</b> 点 · <span id="joined"></span>入阁</div>
+    <button class="btn small" style="margin-top:12px;background:rgba(246,241,228,.16);box-shadow:none" id="btn-copy">复制雅号</button>
+  </section>
+
+  <section class="card fade-up">
+    <div class="card-title">今日</div>
+    <div class="rec-item"><span>每日一省</span><span id="st-checkin" class="t"></span></div>
+    <div class="rec-item"><span>问签</span><span id="st-qian" class="t"></span></div>
+    <div class="rec-item"><span>累计静坐</span><span id="st-xi" class="t"></span></div>
+    <div class="rec-item"><span>灯墙</span><span id="st-deng" class="t"></span></div>
+  </section>
+
+  <section class="card fade-up">
+    <div class="card-title">问心会员 <span class="badge free">敬请期待</span></div>
+    <p style="font-size:13.5px;color:var(--ink-2);margin-bottom:12px">
+      全部深解不限次 · 专属长明灯 · 会员标识。体验期内全站限免，会员上线前不收一分钱。
+    </p>
+    <button class="btn ghost block" id="btn-member">了解会员</button>
+  </section>
+
+  <section class="card fade-up">
+    <div class="card-title">心光明细</div>
+    <div id="logs"></div>
+  </section>
+
+  <section class="card fade-up">
+    <div class="card-title">数据</div>
+    <p style="font-size:13px;color:var(--ink-3);margin-bottom:12px">
+      所有记录仅保存在你这台设备的浏览器中，本站不上传任何个人数据。
+    </p>
+    <button class="btn ghost block" id="btn-clear" style="border-color:var(--sha);color:var(--sha)">清空全部记录</button>
+  </section>
+</main>
+
+<script src="js/core.js"></script>
+<script src="js/data.js"></script>
+<script src="js/premium.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const u = WXG.user();
+  document.getElementById('code').textContent = u.code;
+  document.getElementById('joined').textContent = u.created + ' ';
+  document.getElementById('light').textContent = WXG.Light.get();
+
+  document.getElementById('btn-copy').addEventListener('click', () => {
+    navigator.clipboard && navigator.clipboard.writeText(u.code)
+      .then(() => WXG.toast('已复制：' + u.code))
+      .catch(() => WXG.toast(u.code));
+  });
+
+  /* 今日状态 */
+  document.getElementById('st-checkin').textContent = WXG.checkedInToday() ? '已省 ✓' : '尚未签到';
+  const qq = WXG.Store.get('qian_quota', {});
+  document.getElementById('st-qian').textContent = (qq.date === WXG.todayStr() ? qq.used : 0) + ' 次';
+  document.getElementById('st-xi').textContent = Math.floor(WXG.Store.get('xi_total', 0) / 60) + ' 分钟';
+  document.getElementById('st-deng').textContent = WXG.Store.get('lamps', []).length + ' 盏';
+
+  /* 心光明细 */
+  const logs = WXG.Store.get('light_logs', []).slice(0, 12);
+  document.getElementById('logs').innerHTML = logs.length
+    ? logs.map(l => '<div class="rec-item"><span>' + l.reason + ' <b style="color:var(--gold)">+' + l.n + '</b></span><span class="t">' + l.t + '</span></div>').join('')
+    : '<p style="font-size:13.5px;color:var(--ink-3)">问签、点灯、静坐、签到，皆可积心光。</p>';
+
+  /* 会员（收费点预留） */
+  document.getElementById('btn-member').addEventListener('click', () => {
+    Premium.require('member', () => WXG.toast('体验期内已享全部会员权益'));
+  });
+
+  /* 清空数据 */
+  document.getElementById('btn-clear').addEventListener('click', () => {
+    WXG.modal({
+      title: '清空全部记录？',
+      body: '雅号、心光、灯墙与所有历史将被删除，且无法找回。',
+      okText: '想清楚了，清空',
+      cancel: '再想想',
+      onOk: () => {
+        Object.keys(localStorage).filter(k => k.startsWith('wxg_')).forEach(k => localStorage.removeItem(k));
+        location.reload();
+      }
+    });
+  });
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+{
+  "name": "问心阁",
+  "short_name": "问心阁",
+  "description": "不问鬼神，只问本心。问签、今日历、梦释、心灯、静坐。",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0E1216",
+  "theme_color": "#0E1216",
+  "icons": [
+    { "src": "favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

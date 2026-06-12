@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0E1216">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <title>今日 · 问心阁</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-page="today">
+<main>
+  <header class="pagehead fade-up">
+    <div class="seal">日</div>
+    <div>
+      <h1>今日</h1>
+      <div class="sub">历法宜忌 · 传统民俗参考</div>
+    </div>
+  </header>
+
+  <section class="card fade-up">
+    <div class="cal-nav">
+      <button id="btn-prev">‹ 前一日</button>
+      <button id="btn-today">回到今日</button>
+      <button id="btn-next">后一日 ›</button>
+    </div>
+    <div class="cal-top" id="cal-top">加载历法中…</div>
+  </section>
+
+  <section class="card fade-up">
+    <div class="card-title">宜 · 忌</div>
+    <div class="yiji-row" id="yiji"></div>
+  </section>
+
+  <section class="card fade-up" id="hour-card">
+    <div class="card-title">十二时辰</div>
+    <div class="hour-grid" id="hours"></div>
+    <p style="font-size:11.5px;color:var(--ink-3);margin-top:10px">时辰吉凶为传统民俗说法，重要安排请以现实情况为准。</p>
+  </section>
+</main>
+
+<!-- 历法库：lunar-javascript（MIT 协议，6tail），经 CDN 引入；加载失败时自动降级 -->
+<script src="https://cdn.jsdelivr.net/npm/lunar-javascript@1.7.3/lunar.js"></script>
+<script src="js/core.js"></script>
+<script src="js/data.js"></script>
+<script src="js/premium.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  let offset = 0; /* 与今日的偏移天数 */
+  const WEEK = ['日', '一', '二', '三', '四', '五', '六'];
+
+  function dateAt(off) {
+    const d = new Date();
+    d.setDate(d.getDate() + off);
+    return d;
+  }
+  function fmt(d) {
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+  /* 与 core.js 同源的确定性种子，但针对任意日期 */
+  function seedOf(d, extra) {
+    const s = fmt(d) + (extra || '');
+    let h = 5381;
+    for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
+    return h;
+  }
+
+  const hasLunar = typeof Solar !== 'undefined';
+
+  function render() {
+    const d = dateAt(offset);
+    const top = document.getElementById('cal-top');
+    const yiji = document.getElementById('yiji');
+    const hours = document.getElementById('hours');
+
+    let yiList, jiList, hourHtml = '';
+
+    if (hasLunar) {
+      try {
+        const solar = Solar.fromDate(d);
+        const lunar = solar.getLunar();
+        const jieqi = lunar.getJieQi();
+        top.innerHTML =
+          '<div class="gdate">' + fmt(d) + ' · 星期' + WEEK[d.getDay()] + (jieqi ? ' · <span style="color:var(--sha)">' + jieqi + '</span>' : '') + '</div>' +
+          '<div class="ldate">' + lunar.getMonthInChinese() + '月' + lunar.getDayInChinese() + '</div>' +
+          '<div class="gz">' + lunar.getYearInGanZhi() + '年 · ' + lunar.getMonthInGanZhi() + '月 · ' + lunar.getDayInGanZhi() + '日 · 属' + lunar.getYearShengXiao() + '</div>';
+        yiList = lunar.getDayYi().slice(0, 6);
+        jiList = lunar.getDayJi().slice(0, 6);
+
+        /* 十二时辰吉凶（库提供天神吉凶；异常时降级） */
+        try {
+          const times = lunar.getTimes();
+          hourHtml = times.slice(0, 12).map(t => {
+            const luck = t.getTianShenLuck();
+            const cls = luck === '吉' ? 'lucky' : (luck === '凶' ? 'bad' : 'mid');
+            return '<div class="hour-cell ' + cls + '"><div class="h">' + t.getZhi() + '</div><div class="l">' + luck + '</div></div>';
+          }).join('');
+        } catch (e) { hourHtml = ''; }
+      } catch (e) { renderFallback(d); return; }
+    } else { renderFallback(d); return; }
+
+    yiji.innerHTML =
+      '<div class="col yi-col"><b>宜</b><br>' + yiList.join('　') + '</div>' +
+      '<div class="col ji-col"><b>忌</b><br>' + jiList.join('　') + '</div>';
+    document.getElementById('hour-card').style.display = hourHtml ? '' : 'none';
+    hours.innerHTML = hourHtml;
+  }
+
+  /* 历法库不可用时的降级：只展示公历 + 本阁宜忌词表（确定性轮换） */
+  function renderFallback(d) {
+    document.getElementById('cal-top').innerHTML =
+      '<div class="gdate">' + fmt(d) + ' · 星期' + WEEK[d.getDay()] + '</div>' +
+      '<div class="ldate">今日</div>' +
+      '<div class="gz" style="color:var(--ink-3)">农历信息需联网加载，当前展示生活版宜忌</div>';
+    const yi = WXG.seededPick(YI_POOL, seedOf(d, 'yi'), 4);
+    const ji = WXG.seededPick(JI_POOL, seedOf(d, 'ji'), 3);
+    document.getElementById('yiji').innerHTML =
+      '<div class="col yi-col"><b>宜</b><br>' + yi.join('　') + '</div>' +
+      '<div class="col ji-col"><b>忌</b><br>' + ji.join('　') + '</div>';
+    document.getElementById('hour-card').style.display = 'none';
+  }
+
+  document.getElementById('btn-prev').addEventListener('click', () => { offset--; render(); });
+  document.getElementById('btn-next').addEventListener('click', () => { offset++; render(); });
+  document.getElementById('btn-today').addEventListener('click', () => { offset = 0; render(); });
+  render();
+});
+</script>
+</body>
+</html>

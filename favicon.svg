@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect x="4" y="4" width="56" height="56" rx="14" fill="#BF5B45"/>
+  <rect x="8" y="8" width="48" height="48" rx="10" fill="none" stroke="#F7F3EA" stroke-width="2" opacity=".5"/>
+  <text x="32" y="44" text-anchor="middle" font-family="Songti SC, SimSun, serif" font-size="32" font-weight="700" fill="#F7F3EA">問</text>
+</svg>
